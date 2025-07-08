@@ -129,17 +129,33 @@ class HtmlTableToEcelConverter:
 
         for row in section_data.get('rows', []):
             row_style = row.get('style', None)
-            for col_idx, cell_data in enumerate(row['cells'], start=1):
+            col_idx = 1  # текущий столбец в Excel
+
+            for cell_data in row['cells']:
+                colspan = int(cell_data.get('colspan', 1))
+
+                # Объединяем ячейки при colspan > 1
+                if colspan > 1:
+                    self.sheet.merge_cells(
+                        start_row=self.current_row,
+                        start_column=col_idx,
+                        end_row=self.current_row,
+                        end_column=col_idx + colspan - 1
+                    )
+
+                # Получаем основную (левую верхнюю) ячейку
                 cell = self.sheet.cell(row=self.current_row, column=col_idx)
                 cell.value = cell_data['text']
 
+                # Применяем стили
                 self.apply_styles(cell, self.table_data['table_style'])
                 self.apply_styles(cell, section_style)
                 self.apply_styles(cell, row_style)
                 self.apply_styles(cell, cell_data.get('style'))
 
-            self.current_row += 1
+                col_idx += colspan  # переходим к следующей ячейке с учётом colspan
 
+            self.current_row += 1
 
     def convert(self, output_file='test.xlsx'):
         self.set_col_widths()

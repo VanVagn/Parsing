@@ -8,14 +8,19 @@
 
     <table style="border-collapse: collapse; margin: 40px auto; width: 1000px; max-width: 1000px; background-color: #ffffff; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
         <colgroup>
-        <col>
-        <col>
-        <col>
-        <col>
-        <col style="width: 50px;">
-    </colgroup>
-        <thead style="background-color: #4CAF50; color: white;">
-            <tr>
+            <col>
+            <col>
+            <col>
+            <col>
+            <col style="width: 50px;">
+        </colgroup>
+        <thead>
+            <!-- Новая строка-заголовок -->
+            <tr style="background-color: #333; color: white;">
+                <th colspan="5" style="border: 1px solid #ddd; text-align: center; padding: 16px; font-size: 20px;">Список зарегистрированных пользователей</th>
+            </tr>
+            <!-- Стандартные заголовки -->
+            <tr style="background-color: #4CAF50; color: white;">
                 <th style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px;">Имя</th>
                 <th style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px;">Фамилия</th>
                 <th style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px;">Возраст</th>
@@ -24,33 +29,34 @@
             </tr>
         </thead>
         <tbody>
+            <!-- Остальной код без изменений -->
             <tr style="background-color: #ffffff;">
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Иван</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Иванов</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">28</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Москва</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">2025-06-25</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Иван</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Иванов</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">28</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Москва</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">2025-06-25</td>
             </tr>
             <tr style="background-color: #f2f2f2;">
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Анна</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Петрова</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">31</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Санкт-Петербург</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">2024-12-13</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Анна</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Петрова</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">31</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Санкт-Петербург</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">2024-12-13</td>
             </tr>
             <tr style="background-color: #ffffff;">
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Олег</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Сидоров</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">45</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Новосибирск</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">2023-05-03</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Олег</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Сидоров</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">45</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Новосибирск</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">2023-05-03</td>
             </tr>
             <tr style="background-color: #f2f2f2;">
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Елена</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Морозова</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">22</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">Казань</td>
-                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; min-width: 120px; color: #333;">2025-01-15</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Елена</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Морозова</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">22</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">Казань</td>
+                <td style="border: 1px solid #ddd; text-align: center; padding: 12px; color: #333;">2025-01-15</td>
             </tr>
         </tbody>
     </table>

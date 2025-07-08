@@ -11,7 +11,7 @@ class MyParser(HTMLParser):
             'thead': {'style': None, 'rows': []},
             'tbody': {'style': None, 'rows': []},
             'tfoot': {'style': None, 'rows': []},
-            'colgroup' : []
+            'colgroup': []
         }
         self.current_row = {
             'style': None,
@@ -22,6 +22,7 @@ class MyParser(HTMLParser):
         self.inside_cell = False
         self.in_colgroup = False
         self.cell_style = None
+        self.cell_colspan = 1  # по умолчанию
 
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
@@ -50,9 +51,9 @@ class MyParser(HTMLParser):
             }
         elif tag in ('td', 'th'):
             self.cell_style = attrs_dict.get('style', None)
+            self.cell_colspan = int(attrs_dict.get('colspan', '1'))  # 🔧 ИЗМЕНЕНО
             self.current_cell_content = ""
             self.inside_cell = True
-
 
     def handle_data(self, data):
         if self.in_target_table and self.inside_cell:
@@ -71,7 +72,8 @@ class MyParser(HTMLParser):
                     cell_style += "font-weight: bold"
             cell = {
                 'style': cell_style,
-                'text': self.current_cell_content
+                'text': self.current_cell_content,
+                'colspan': self.cell_colspan  # 🔧 ИЗМЕНЕНО
             }
             self.current_row['cells'].append(cell)
             self.inside_cell = False
@@ -85,6 +87,7 @@ class MyParser(HTMLParser):
             self.current_section = None
         elif tag == 'table':
             self.in_target_table = False
+
 
 
 
