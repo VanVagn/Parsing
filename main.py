@@ -4,7 +4,7 @@ from classes.ConvertToExcel import HtmlTableToEcelConverter
 from classes.Parser import MyParser
 
 url = "https://ru.onlinemschool.com/math/formula/sine_table/"
-path = "test1.html"
+path = "test_html.html"
 response = requests.get(url)
 # html = response.text
 # table_class = "oms_mnt1"
@@ -17,7 +17,7 @@ parser = MyParser()
 
 parser.feed(html)
 converter = HtmlTableToEcelConverter(parser.table_data)
-converter.convert("excelFiles/text.xlsx")
+converter.convert("excelFiles/test.xlsx")
 print(parser.table_data['table_style'])
 # k = len(parser.table_data['tbody']['rows'])
 # for i in range(k):

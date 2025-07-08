@@ -134,6 +134,10 @@ class HtmlTableToEcelConverter:
             for cell_data in row['cells']:
                 colspan = int(cell_data.get('colspan', 1))
 
+                # Получаем основную ячейку
+                cell = self.sheet.cell(row=self.current_row, column=col_idx)
+                cell.value = cell_data['text']
+
                 # Объединяем ячейки при colspan > 1
                 if colspan > 1:
                     self.sheet.merge_cells(
@@ -143,17 +147,13 @@ class HtmlTableToEcelConverter:
                         end_column=col_idx + colspan - 1
                     )
 
-                # Получаем основную (левую верхнюю) ячейку
-                cell = self.sheet.cell(row=self.current_row, column=col_idx)
-                cell.value = cell_data['text']
-
-                # Применяем стили
+                # Применяем стили только после merge
                 self.apply_styles(cell, self.table_data['table_style'])
                 self.apply_styles(cell, section_style)
                 self.apply_styles(cell, row_style)
                 self.apply_styles(cell, cell_data.get('style'))
 
-                col_idx += colspan  # переходим к следующей ячейке с учётом colspan
+                col_idx += colspan  # Учитываем объединённые колонки
 
             self.current_row += 1
 
