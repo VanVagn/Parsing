@@ -23,56 +23,80 @@ class HtmlTableToEcelConverter:
         "teal": "008080",
         "aqua": "00FFFF"
     }
+
+    APPLICABLE_CSS_PROPERTIES = {
+        'font-weight', 'font-style', 'text-decoration', 'color', 'background-color',
+        'text-align', 'vertical-align', 'border'
+    }
+
+
     def __init__(self, table_data):
         self.table_data = table_data
         self.wb = Workbook()
         self.sheet = self.wb.active
         self.current_row = 1
 
+    def merge_styles(self, *styles):
+        merged = {}
+        for style_str in styles:
+            if style_str is None:
+                style_str = ''
+            style_dict = self.parse_style(style_str)
+            for key, value in style_dict.items():
+                if key in self.APPLICABLE_CSS_PROPERTIES:
+                    merged[key] = value
+        return merged
 
-    def apply_styles(self, cell, style_str):
-        if not style_str:
+    def apply_styles(self, cell, style_dict):
+        if not style_dict or not isinstance(style_dict, dict):
             return
-        style_dict = self.parse_style(style_str)
-        if 'width' in style_dict:
-            width_str = style_dict['width']
-            try:
-                width = int(width_str.replace('px', '').strip()) / 7
-                amount_columns = len(self.table_data['tbody']['rows'][0]['cells'])
-                width = width / amount_columns
-                col_letter = cell.column_letter
-                self.sheet.column_dimensions[col_letter].width = width
-            except ValueError:
-                pass
 
-        if 'text-align' in style_dict:
-            cell.alignment = Alignment(horizontal=style_dict['text-align'])
-        if 'font-weight' in style_dict and style_dict['font-weight'] == 'bold':
-            cell.font = Font(bold=True)
-        if 'color' in style_dict:
-            color_val = style_dict['color'].strip().lower()
-            if color_val.startswith('#'):
-                hex_color = color_val.lstrip('#')
-            elif color_val in self.CSS_COLOR_NAMES:
-                hex_color = self.CSS_COLOR_NAMES[color_val]
-            else:
-                hex_color = None
-            if hex_color and re.fullmatch(r'[0-9a-fA-F]{6}', hex_color):
-                font_color = 'FF' + hex_color.upper()
-                old_font = cell.font or Font()
-                cell.font = Font(
-                    name=old_font.name,
-                    size=old_font.size,
-                    bold=old_font.bold,
-                    italic=old_font.italic,
-                    underline=old_font.underline,
-                    color=font_color
-                )
+        # Выравнивание
+        if 'text-align' in style_dict or 'vertical-align' in style_dict:
+            horizontal = style_dict.get('text-align', None)
+            vertical = style_dict.get('vertical-align', None)
+            cell.alignment = Alignment(horizontal=horizontal, vertical=vertical)
+
+        # Стиль текста
+        bold = style_dict.get('font-weight', None)
+        italic = style_dict.get('font-style', None)
+        underline = style_dict.get('text-decoration', None)
+
+        # Переделываем под формат openpyxl
+        if underline:
+            underline = 'single' if 'underline' in underline else None
+
+        # Цвет текста
+        color_val = style_dict['color'].strip().lower()
+        if color_val.startswith('#'):
+            hex_color = color_val.lstrip('#')
+        elif color_val in self.CSS_COLOR_NAMES:
+            hex_color = self.CSS_COLOR_NAMES[color_val]
+        else:
+            hex_color = None
+        font_color = None
+        if hex_color and re.fullmatch(r'[0-9a-fA-F]{6}', hex_color):
+            font_color = 'FF' + hex_color.upper()
+
+        # Собираем новый Font
+        old_font = cell.font or Font()
+        cell.font = Font(
+            name=old_font.name,
+            size=old_font.size,
+            bold=bold if bold is not None else old_font.bold,
+            italic=italic if italic is not None else old_font.italic,
+            underline=underline if underline is not None else old_font.underline,
+            color=font_color if font_color else old_font.color
+        )
+
+        # Фон
         if 'background-color' in style_dict:
             color = style_dict['background-color'].replace('#', '')
             if re.fullmatch(r'[0-9a-fA-F]{6}', color):
                 excel_color = 'FF' + color.upper()
                 cell.fill = PatternFill(start_color=excel_color, patternType="solid")
+
+        # Границы
         if 'border' in style_dict:
             border_str = style_dict['border']
             parts = border_str.split()
@@ -108,20 +132,65 @@ class HtmlTableToEcelConverter:
         return style_dict
 
     def set_col_widths(self):
-        for index, col in enumerate(self.table_data['colgroup'], start=1):
-            style = col.get('style')
-            width = None
-            if style:
-                styles = self.parse_style(style)
-                width_str = styles.get('width')
-                if width_str and width_str.endswith('px'):
+        colgroup = self.table_data.get('colgroup', [])
+        table_style = self.parse_style(self.table_data.get('table_style', ''))
+
+        table_width_px = None
+        width_str = table_style.get('width', '')
+        if width_str.endswith('px'):
+            try:
+                table_width_px = int(width_str.replace('px', '').strip())
+            except ValueError:
+                pass
+
+        body_rows = self.table_data.get('tbody', {}).get('rows', [])
+        first_row = body_rows[0] if body_rows else {}
+        cells = first_row.get('cells', [])
+        total_cols = len(cells)
+
+        known_widths = {}
+        unknown_indexes = set()
+
+        for col_idx, cell_data in enumerate(cells):
+            width_px = None
+            cell_style = self.parse_style(cell_data.get('style', ''))
+            cell_width_str = cell_style.get('width', '')
+
+            if cell_width_str.endswith('px'):
+                try:
+                    width_px = int(cell_width_str.replace('px', '').strip())
+                    known_widths[col_idx] = width_px
+                except ValueError:
+                    unknown_indexes.add(col_idx)
+            else:
+                unknown_indexes.add(col_idx)
+
+        for col_idx in unknown_indexes.copy():
+            if col_idx < len(colgroup):
+                col_style = self.parse_style(colgroup[col_idx].get('style') or '')
+                col_width_str = col_style.get('width', '')
+                if col_width_str.endswith('px'):
                     try:
-                        width = int(width_str.replace('px', '').strip()) / 7
+                        width_px = int(col_width_str.replace('px', '').strip())
+                        known_widths[col_idx] = width_px
+                        unknown_indexes.discard(col_idx)
                     except ValueError:
                         pass
-            if width:
-                col_letter = get_column_letter(index)
-                self.sheet.column_dimensions[col_letter].width = width
+
+        if table_width_px and unknown_indexes:
+            total_known = sum(known_widths.values())
+            remaining_px = max(table_width_px - total_known, 0)
+            per_col_px = remaining_px / len(unknown_indexes)
+
+            for col_idx in unknown_indexes:
+                known_widths[col_idx] = per_col_px
+
+        for col_idx in range(total_cols):
+            px = known_widths.get(col_idx)
+            if px:
+                excel_width = px / 7
+                col_letter = get_column_letter(col_idx + 1)
+                self.sheet.column_dimensions[col_letter].width = excel_width
 
     def add_styles_to_section(self, section):
         section_data = self.table_data[section]
@@ -131,12 +200,24 @@ class HtmlTableToEcelConverter:
             row_style = row.get('style', None)
             for col_idx, cell_data in enumerate(row['cells'], start=1):
                 cell = self.sheet.cell(row=self.current_row, column=col_idx)
-                cell.value = cell_data['text']
+                cell.value = cell_data.get('text', "")
+                cell_style = cell_data.get('style', "")
 
-                self.apply_styles(cell, self.table_data['table_style'])
-                self.apply_styles(cell, section_style)
-                self.apply_styles(cell, row_style)
-                self.apply_styles(cell, cell_data.get('style'))
+        # Жирный шрифт по умолчанию
+                if section == 'thead':
+                    if 'font-weight' not in cell_style:
+                        if cell_style:
+                            cell_style += "; "
+                        cell_style += "font-weight: bold"
+
+                merged_style = self.merge_styles(
+                    self.table_data.get('table_style', ""),
+                    section_style,
+                    row_style,
+                    cell_style
+                )
+
+                self.apply_styles(cell, merged_style)
 
             self.current_row += 1
 

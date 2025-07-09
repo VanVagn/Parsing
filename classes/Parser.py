@@ -34,6 +34,7 @@ class MyParser(HTMLParser):
         if not self.in_target_table:
             return
 
+        # todo посмотреть приоритет, возможно надо переделать
         if tag == 'colgroup':
             self.in_colgroup = True
         elif self.in_colgroup and tag == 'col':
@@ -63,14 +64,8 @@ class MyParser(HTMLParser):
             return
 
         if tag in ('td', 'th'):
-            cell_style = self.cell_style or ""
-            if self.current_section == 'thead':
-                if 'font-weight' not in cell_style:
-                    if cell_style:
-                        cell_style += "; "
-                    cell_style += "font-weight: bold"
             cell = {
-                'style': cell_style,
+                'style': self.cell_style,
                 'text': self.current_cell_content
             }
             self.current_row['cells'].append(cell)
