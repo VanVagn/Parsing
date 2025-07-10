@@ -1,0 +1,18 @@
+ Игнорируем файлы и папки IDEA
+.idea/ParsingProject.iml
+.idea/inspectionProfiles/
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+.venv/
+
+
+# Игнорируем кэш Python
+
+classes/__pycache__
+*.pyc
+*.pyo
+*.pyd
+# Игнорируем папку с Excel файлами
+excelFiles/
+html/
