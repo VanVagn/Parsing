@@ -1,5 +1,6 @@
 from openpyxl import workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+from openpyxl.styles.builtins import total
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook import Workbook
 import re
@@ -67,7 +68,8 @@ class HtmlTableToEcelConverter:
             underline = 'single' if 'underline' in underline else None
 
         # Цвет текста
-        color_val = style_dict['color'].strip().lower()
+        color = style_dict.get('color') or ""
+        color_val = color.strip().lower()
         if color_val.startswith('#'):
             hex_color = color_val.lstrip('#')
         elif color_val in self.CSS_COLOR_NAMES:
@@ -154,51 +156,54 @@ class HtmlTableToEcelConverter:
                 pass
 
         body_rows = self.table_data.get('tbody', {}).get('rows', [])
-        first_row = body_rows[0] if body_rows else {}
-        cells = first_row.get('cells', [])
-        total_cols = len(cells)
-
         known_widths = {}
-        unknown_indexes = set()
+        max_col_index = 0
 
-        for col_idx, cell_data in enumerate(cells):
-            width_px = None
-            cell_style = self.parse_style(cell_data.get('style', ''))
-            cell_width_str = cell_style.get('width', '')
+        for row in body_rows:
+            cells = row.get('cells', [])
+            col_cursor = 0
+            for cell in cells:
+                colspan = int(cell.get('colspan', 1))
+                style = self.parse_style(cell.get('style', ''))
+                width_str = style.get('width', '')
 
-            if cell_width_str.endswith('px'):
-                try:
-                    width_px = int(cell_width_str.replace('px', '').strip())
-                    known_widths[col_idx] = width_px
-                except ValueError:
-                    unknown_indexes.add(col_idx)
-            else:
-                unknown_indexes.add(col_idx)
+                if width_str.endswith('px'):
+                    try:
+                        px = int(width_str.replace('px', '').strip())
+                        per_col_px = px / colspan
+                        for offset in range(colspan):
+                            col_idx = col_cursor + offset
+                            if col_idx not in known_widths:
+                                known_widths[col_idx] = per_col_px
+                    except ValueError:
+                        pass
 
-        for col_idx in unknown_indexes.copy():
-            if col_idx < len(colgroup):
+                col_cursor += colspan
+                max_col_index = max(max_col_index, col_cursor)
+
+        for col_idx in range(max_col_index):
+            if col_idx not in known_widths and col_idx < len(colgroup):
                 col_style = self.parse_style(colgroup[col_idx].get('style') or '')
                 col_width_str = col_style.get('width', '')
                 if col_width_str.endswith('px'):
                     try:
-                        width_px = int(col_width_str.replace('px', '').strip())
-                        known_widths[col_idx] = width_px
-                        unknown_indexes.discard(col_idx)
+                        px = int(col_width_str.replace('px', '').strip())
+                        known_widths[col_idx] = px
                     except ValueError:
                         pass
 
+        unknown_indexes = [i for i in range(max_col_index) if i not in known_widths]
         if table_width_px and unknown_indexes:
             total_known = sum(known_widths.values())
             remaining_px = max(table_width_px - total_known, 0)
             per_col_px = remaining_px / len(unknown_indexes)
+            for idx in unknown_indexes:
+                known_widths[idx] = per_col_px
 
-            for col_idx in unknown_indexes:
-                known_widths[col_idx] = per_col_px
-
-        for col_idx in range(total_cols):
+        for col_idx in range(max_col_index):
             px = known_widths.get(col_idx)
             if px:
-                excel_width = px / 7
+                excel_width = (px - 5) / 7
                 col_letter = get_column_letter(col_idx + 1)
                 self.sheet.column_dimensions[col_letter].width = excel_width
 
