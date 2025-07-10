@@ -1,10 +1,5 @@
  Игнорируем файлы и папки IDEA
-.idea/ParsingProject.iml
-.idea/inspectionProfiles/
-.idea/misc.xml
-.idea/modules.xml
-.idea/vcs.xml
-.venv/
+.idea/
 
 
 # Игнорируем кэш Python
