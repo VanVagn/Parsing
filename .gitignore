@@ -8,8 +8,11 @@
 
 
 # Игнорируем кэш Python
-classes/__pycache__/
 
+classes/__pycache__
+*.pyc
+*.pyo
+*.pyd
 # Игнорируем папку с Excel файлами
 excelFiles/
 html/

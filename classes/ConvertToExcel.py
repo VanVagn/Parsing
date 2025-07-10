@@ -92,8 +92,9 @@ class HtmlTableToEcelConverter:
         # Фон
         if 'background-color' in style_dict:
             color = style_dict['background-color'].replace('#', '')
-            if re.fullmatch(r'[0-9a-fA-F]{6}', color):
-                excel_color = 'FF' + color.upper()
+            end_color = self.expand_short_hex(color)
+            if re.fullmatch(r'[0-9a-fA-F]{6}', end_color):
+                excel_color = 'FF' + end_color.upper()
                 cell.fill = PatternFill(start_color=excel_color, patternType="solid")
 
         # Границы
@@ -125,11 +126,20 @@ class HtmlTableToEcelConverter:
 
     def parse_style(self, style_str):
         style_dict = {}
+        if not style_str:
+            return style_dict
         for part in style_str.split(';'):
             if ':' in part:
                 key, value = part.strip().split(':', 1)
                 style_dict[key.strip()] = value.strip()
         return style_dict
+
+    def expand_short_hex(self, hex_color):
+        if len(hex_color) == 3:
+            return ''.join([c * 2 for c in hex_color])
+        elif len(hex_color) == 6:
+            return hex_color
+        return hex_color
 
     def set_col_widths(self):
         colgroup = self.table_data.get('colgroup', [])
@@ -198,10 +208,22 @@ class HtmlTableToEcelConverter:
 
         for row in section_data.get('rows', []):
             row_style = row.get('style', None)
-            for col_idx, cell_data in enumerate(row['cells'], start=1):
-                cell = self.sheet.cell(row=self.current_row, column=col_idx)
-                cell.value = cell_data.get('text', "")
+            excel_col_idx = 1
+            for cell_data in row['cells']:
+                colspan = int(cell_data.get('colspan', 1))
+                cell = self.sheet.cell(row=self.current_row, column=excel_col_idx)
                 cell_style = cell_data.get('style', "")
+                cell.value = cell_data.get('text', "")
+
+                if colspan > 1:
+                    self.sheet.merge_cells(
+                        start_row=self.current_row,
+                        start_column=excel_col_idx,
+                        end_row=self.current_row,
+                        end_column=excel_col_idx + colspan - 1
+                    )
+
+
 
         # Жирный шрифт по умолчанию
                 if section == 'thead':
@@ -218,6 +240,7 @@ class HtmlTableToEcelConverter:
                 )
 
                 self.apply_styles(cell, merged_style)
+                excel_col_idx += colspan
 
             self.current_row += 1
 

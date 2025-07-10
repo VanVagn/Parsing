@@ -22,6 +22,7 @@ class MyParser(HTMLParser):
         self.inside_cell = False
         self.in_colgroup = False
         self.cell_style = None
+        self.cell_colspan = 1
 
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
@@ -51,6 +52,7 @@ class MyParser(HTMLParser):
             }
         elif tag in ('td', 'th'):
             self.cell_style = attrs_dict.get('style', None)
+            self.cell_colspan = int(attrs_dict.get('colspan', '1'))
             self.current_cell_content = ""
             self.inside_cell = True
 
@@ -66,7 +68,8 @@ class MyParser(HTMLParser):
         if tag in ('td', 'th'):
             cell = {
                 'style': self.cell_style,
-                'text': self.current_cell_content
+                'text': self.current_cell_content,
+                'colspan': self.cell_colspan
             }
             self.current_row['cells'].append(cell)
             self.inside_cell = False
