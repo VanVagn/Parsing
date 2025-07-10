@@ -87,12 +87,3 @@ class MyParser(HTMLParser):
             self.current_section = None
         elif tag == 'table':
             self.in_target_table = False
-
-
-
-
-
-
-
-
-

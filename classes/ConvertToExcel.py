@@ -4,7 +4,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.workbook import Workbook
 import re
 
-class HtmlTableToEcelConverter:
+class HtmlTableToExcelConverter:
     CSS_COLOR_NAMES = {
         "black": "000000",
         "silver": "C0C0C0",
@@ -108,19 +108,49 @@ class HtmlTableToEcelConverter:
         return style_dict
 
     def set_col_widths(self):
-        for index, col in enumerate(self.table_data['colgroup'], start=1):
-            style = col.get('style')
+        thead_rows = self.table_data.get('thead', {}).get('rows', [])
+        fallback_widths = []
+
+        # Сначала пробуем собрать ширины из первой строки thead (из ячеек)
+        if thead_rows:
+            first_row = thead_rows[0]
+            for cell in first_row['cells']:
+                style = cell.get('style', '')
+                width = None
+                if style:
+                    style_dict = self.parse_style(style)
+                    width_str = style_dict.get('width')
+                    if width_str and width_str.endswith('px'):
+                        try:
+                            width = int(width_str.replace('px', '').strip()) / 7
+                        except ValueError:
+                            width = None
+                fallback_widths.append(width)
+
+        # Теперь пробуем colgroup
+        colgroup = self.table_data.get('colgroup', [])
+        for idx in range(max(len(colgroup), len(fallback_widths))):
             width = None
-            if style:
-                styles = self.parse_style(style)
-                width_str = styles.get('width')
-                if width_str and width_str.endswith('px'):
-                    try:
-                        width = int(width_str.replace('px', '').strip()) / 7
-                    except ValueError:
-                        pass
+
+            # 1. Пробуем взять из colgroup
+            if idx < len(colgroup):
+                style = colgroup[idx].get('style')
+                if style:
+                    styles = self.parse_style(style)
+                    width_str = styles.get('width')
+                    if width_str and width_str.endswith('px'):
+                        try:
+                            width = int(width_str.replace('px', '').strip()) / 7
+                        except ValueError:
+                            width = None
+
+            # 2. Если не удалось — берём из thead
+            if width is None and idx < len(fallback_widths):
+                width = fallback_widths[idx]
+
+            # 3. Применяем, если есть значение
             if width:
-                col_letter = get_column_letter(index)
+                col_letter = get_column_letter(idx + 1)
                 self.sheet.column_dimensions[col_letter].width = width
 
     def add_styles_to_section(self, section):
