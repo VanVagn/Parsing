@@ -11,7 +11,7 @@ class MyParser(HTMLParser):
             'thead': {'style': None, 'rows': []},
             'tbody': {'style': None, 'rows': []},
             'tfoot': {'style': None, 'rows': []},
-            'colgroup': []
+            'colgroup' : []
         }
         self.current_row = {
             'style': None,
@@ -22,7 +22,8 @@ class MyParser(HTMLParser):
         self.inside_cell = False
         self.in_colgroup = False
         self.cell_style = None
-        self.cell_colspan = 1  # по умолчанию
+        self.cell_colspan = 1
+        self.cell_rowspan = 1
 
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
@@ -34,6 +35,7 @@ class MyParser(HTMLParser):
                 self.table_data['table_style'] = attrs_dict.get('style', None)
         if not self.in_target_table:
             return
+
 
         if tag == 'colgroup':
             self.in_colgroup = True
@@ -51,9 +53,11 @@ class MyParser(HTMLParser):
             }
         elif tag in ('td', 'th'):
             self.cell_style = attrs_dict.get('style', None)
-            self.cell_colspan = int(attrs_dict.get('colspan', '1'))  # 🔧 ИЗМЕНЕНО
+            self.cell_colspan = int(attrs_dict.get('colspan', '1'))
+            self.cell_rowspan = int(attrs_dict.get('rowspan', '1'))
             self.current_cell_content = ""
             self.inside_cell = True
+
 
     def handle_data(self, data):
         if self.in_target_table and self.inside_cell:
@@ -64,16 +68,12 @@ class MyParser(HTMLParser):
             return
 
         if tag in ('td', 'th'):
-            cell_style = self.cell_style or ""
-            if self.current_section == 'thead':
-                if 'font-weight' not in cell_style:
-                    if cell_style:
-                        cell_style += "; "
-                    cell_style += "font-weight: bold"
             cell = {
-                'style': cell_style,
+                'style': self.cell_style,
                 'text': self.current_cell_content,
-                'colspan': self.cell_colspan  # 🔧 ИЗМЕНЕНО
+                'colspan': self.cell_colspan,
+                'rowspan': self.cell_rowspan
+
             }
             self.current_row['cells'].append(cell)
             self.inside_cell = False
@@ -87,3 +87,11 @@ class MyParser(HTMLParser):
             self.current_section = None
         elif tag == 'table':
             self.in_target_table = False
+
+
+
+
+
+
+
+
