@@ -1,6 +1,7 @@
  Игнорируем файлы и папки IDEA
 .idea/
 excelFiles/
+html/
 
 
 # Игнорируем кэш Python
