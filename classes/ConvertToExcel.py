@@ -56,7 +56,11 @@ class HtmlTableToEcelConverter:
         if 'text-align' in style_dict or 'vertical-align' in style_dict:
             horizontal = style_dict.get('text-align', None)
             vertical = style_dict.get('vertical-align', None)
-            cell.alignment = Alignment(horizontal=horizontal, vertical=vertical)
+            if vertical == 'middle':
+                vertical = 'center'
+            cell.alignment = Alignment(horizontal=horizontal or 'general', vertical=vertical or 'bottom', wrap_text=True)
+        else:
+            cell.alignment = Alignment(wrap_text=True)
 
         # Стиль текста
         bold = style_dict.get('font-weight', None)
@@ -242,12 +246,21 @@ class HtmlTableToEcelConverter:
     def add_styles_to_section(self, section):
         section_data = self.table_data[section]
         section_style = section_data.get('style', None)
+        rowspan_tracker = {}
 
         for row in section_data.get('rows', []):
-            row_style = row.get('style', None)
             excel_col_idx = 1
+
+            while (self.current_row, excel_col_idx) in rowspan_tracker:
+                rowspan_tracker[(self.current_row, excel_col_idx)] -= 1
+                if rowspan_tracker[(self.current_row, excel_col_idx)] == 0:
+                    del rowspan_tracker[(self.current_row, excel_col_idx)]
+                excel_col_idx += 1
+
+            row_style = row.get('style', None)
             for cell_data in row['cells']:
                 colspan = int(cell_data.get('colspan', 1))
+                rowspan = int(cell_data.get('rowspan', 1))
                 cell = self.sheet.cell(row=self.current_row, column=excel_col_idx)
                 cell_style = cell_data.get('style', "")
                 cell.value = cell_data.get('text', "")
@@ -259,6 +272,19 @@ class HtmlTableToEcelConverter:
                         end_row=self.current_row,
                         end_column=excel_col_idx + colspan - 1
                     )
+
+                if rowspan > 1:
+                    self.sheet.merge_cells(
+                        start_row=self.current_row,
+                        start_column=excel_col_idx,
+                        end_row=self.current_row + rowspan - 1,
+                        end_column=excel_col_idx + colspan - 1
+                    )
+
+                    for r in range(1, rowspan):
+                        for c in range(colspan):
+                            key = (self.current_row + r, excel_col_idx + c)
+                            rowspan_tracker[key] = rowspan_tracker.get(key, 0) + 1
 
 
 
@@ -276,10 +302,19 @@ class HtmlTableToEcelConverter:
                     cell_style
                 )
 
+                cell = self.get_master_cell(cell)
                 self.apply_styles(cell, merged_style)
                 excel_col_idx += colspan
 
+
             self.current_row += 1
+
+    def get_master_cell(self, cell):
+        for merged_range in self.sheet.merged_cells.ranges:
+            min_col, min_row, max_col, max_row = range_boundaries(str(merged_range))
+            if min_row <= cell.row <= max_row and min_col <= cell.column <= max_col:
+                return self.sheet.cell(row=min_row, column=min_col)
+        return cell
 
 
     def convert(self, output_file='test.xlsx'):

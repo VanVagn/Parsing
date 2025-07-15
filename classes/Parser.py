@@ -60,6 +60,7 @@ class MyParser(HTMLParser):
         elif tag in ('td', 'th'):
             self.cell_style = attrs_dict.get('style', None)
             self.cell_colspan = int(attrs_dict.get('colspan', '1'))
+            self.cell_rowspan = int(attrs_dict.get('rowspan', '1'))
             self.current_cell_content = ""
             self.inside_cell = True
 
@@ -80,6 +81,10 @@ class MyParser(HTMLParser):
                 'rowspan': self.cell_rowspan
 
             }
+            if tag == 'th':
+                if cell['style']:
+                    cell['style'] += "; "
+                cell['style'] += "font-weight: bold"
             self.current_row['cells'].append(cell)
             self.inside_cell = False
         elif tag == 'tr':
