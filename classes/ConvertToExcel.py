@@ -1,6 +1,5 @@
 from openpyxl import workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
-from openpyxl.styles.builtins import total
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook import Workbook
 import re
@@ -48,7 +47,7 @@ class HtmlTableToExcelConverter:
                     merged[key] = value
         return merged
 
-    def apply_styles(self, cell, style_dict):
+    def apply_styles(self, cell, style_dict, wrap_text=False):
         if not style_dict or not isinstance(style_dict, dict):
             return
 
@@ -64,8 +63,9 @@ class HtmlTableToExcelConverter:
             alignment_kwargs['horizontal'] = horizontal
         if vertical:
             alignment_kwargs['vertical'] = vertical
-        if alignment_kwargs:
-            cell.alignment = Alignment(**alignment_kwargs)
+        alignment_kwargs['wrap_text'] = wrap_text
+
+        cell.alignment = Alignment(**alignment_kwargs)
 
         # Стиль текста
         bold = style_dict.get('font-weight', None)
@@ -231,14 +231,13 @@ class HtmlTableToExcelConverter:
             row_style = row.get('style', None)
             row_height = None
 
-            # height из стиля строки
             if row_style:
                 row_style_dict = self.parse_style(row_style)
                 height_str = row_style_dict.get('height')
                 if height_str and height_str.endswith('px'):
                     try:
                         px = int(height_str.replace('px', '').strip())
-                        row_height = px * 0.75  # Перевод в pt
+                        row_height = px * 0.75
                     except ValueError:
                         pass
 
@@ -249,16 +248,25 @@ class HtmlTableToExcelConverter:
 
             while (self.current_row, excel_col_idx) in rowspan_map:
                 cell_info = rowspan_map[(self.current_row, excel_col_idx)]
-                cell = self.sheet.cell(row=self.current_row, column=excel_col_idx)
-                cell.value = cell_info['text']
-                self.apply_styles(cell, cell_info['style'])
+                start_row = self.current_row
+                start_col = excel_col_idx
+                end_row = start_row + cell_info['remaining']
+                end_col = start_col
+
+                master_row, master_col = self.get_master_cell_coordinates(start_row, start_col)
+                master_cell = self.sheet.cell(row=master_row, column=master_col)
+
+                if master_cell.value is None:
+                    master_cell.value = cell_info['text']
+                    self.apply_styles(master_cell, cell_info['style'], wrap_text=True)
 
                 self.sheet.merge_cells(
-                    start_row=self.current_row,
-                    end_row=self.current_row + cell_info['remaining'],
-                    start_column=excel_col_idx,
-                    end_column=excel_col_idx
+                    start_row=start_row,
+                    end_row=end_row,
+                    start_column=start_col,
+                    end_column=end_col
                 )
+
                 del rowspan_map[(self.current_row, excel_col_idx)]
                 excel_col_idx += 1
 
@@ -268,7 +276,6 @@ class HtmlTableToExcelConverter:
                 cell_style = cell_data.get('style', "")
                 cell = self.sheet.cell(row=self.current_row, column=excel_col_idx)
                 cell.value = cell_data.get('text', "")
-
 
                 if section == 'thead' and 'font-weight' not in cell_style:
                     if cell_style:
@@ -281,9 +288,10 @@ class HtmlTableToExcelConverter:
                     row_style,
                     cell_style
                 )
-                self.apply_styles(cell, merged_style)
 
-                # Объединение по горизонтали
+                wrap_text = rowspan > 1
+                self.apply_styles(cell, merged_style, wrap_text=wrap_text)
+
                 if colspan > 1:
                     self.sheet.merge_cells(
                         start_row=self.current_row,
@@ -292,7 +300,6 @@ class HtmlTableToExcelConverter:
                         end_column=excel_col_idx + colspan - 1
                     )
 
-                # Объединение по вертикали
                 if rowspan > 1:
                     for offset in range(rowspan):
                         target_row = self.current_row + offset
@@ -313,6 +320,13 @@ class HtmlTableToExcelConverter:
                 excel_col_idx += colspan
 
             self.current_row += 1
+
+    def get_master_cell_coordinates(self, row, col):
+        for merged_range in self.sheet.merged_cells.ranges:
+            min_col, min_row, max_col, max_row = merged_range.bounds
+            if min_row <= row <= max_row and min_col <= col <= max_col:
+                return min_row, min_col
+        return row, col
 
     def convert(self, output_file='test.xlsx'):
         self.set_col_widths()
