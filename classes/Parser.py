@@ -32,7 +32,13 @@ class MyParser(HTMLParser):
             table_class = attrs_dict.get('class')
             if self.target_class is None or table_class == self.target_class:
                 self.in_target_table = True
-                self.table_data['table_style'] = attrs_dict.get('style', None)
+                style = attrs_dict.get('style', '')
+                if 'border' in attrs_dict:
+                    border_value = attrs_dict['border']
+                    if border_value == '1':
+                        style += '; border: 1px solid black'
+
+                self.table_data['table_style'] = style if style else None
         if not self.in_target_table:
             return
 

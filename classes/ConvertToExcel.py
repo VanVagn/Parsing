@@ -1,7 +1,7 @@
 from openpyxl import workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.styles.builtins import total
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.workbook import Workbook
 import re
 
@@ -124,7 +124,39 @@ class HtmlTableToEcelConverter:
                     color = "FF000000"
 
                 side = Side(border_style=border_style, color=color)
-                cell.border = Border(left=side, right=side, top=side, bottom=side)
+                self.apply_border(cell, side)
+
+
+
+    def apply_border(self, cell, side):
+
+        sheet = self.sheet
+        merged_ranges = sheet.merged_cells.ranges
+        left = right = top = bottom = None
+        found_merge = False
+        for merged_range in merged_ranges:
+            min_col, min_row, max_col, max_row = range_boundaries(str(merged_range))
+            if min_row <= cell.row <= max_row and min_col <= cell.column <= max_col:
+                found_merge = True
+                for row in range(min_row, max_row + 1):
+                    for col in range(min_col, max_col + 1):
+                        target_cell = sheet.cell(row=row, column=col)
+
+                        if col == min_col:
+                            left = side
+                        if col == max_col:
+                            right = side
+                        if row == min_row:
+                            top = side
+                        if row == max_row:
+                            bottom = side
+
+                        target_cell.border = Border(left=left, right=right, top=top, bottom=bottom)
+                break
+        if not found_merge:
+            left = right = top = bottom = side
+
+        cell.border = Border(left=left, right=right, top=top, bottom=bottom)
 
     def parse_style(self, style_str):
         style_dict = {}
