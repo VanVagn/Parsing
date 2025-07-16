@@ -48,21 +48,34 @@ class HtmlTableToEcelConverter:
                     merged[key] = value
         return merged
 
+
+
     def apply_styles(self, cell, style_dict):
         if not style_dict or not isinstance(style_dict, dict):
             return
 
-        # Выравнивание
-        if 'text-align' in style_dict or 'vertical-align' in style_dict:
-            horizontal = style_dict.get('text-align', None)
-            vertical = style_dict.get('vertical-align', None)
-            if vertical == 'middle':
-                vertical = 'center'
-            cell.alignment = Alignment(horizontal=horizontal or 'general', vertical=vertical or 'bottom', wrap_text=True)
-        else:
-            cell.alignment = Alignment(wrap_text=True)
+        self.apply_alignment(cell, style_dict)
+        self.apply_font(cell, style_dict)
+        self.apply_background(cell, style_dict)
+        self.apply_border(cell, style_dict)
 
-        # Стиль текста
+    # Выравнивание
+    def apply_alignment(self, cell, style_dict):
+        horizontal = style_dict.get('text-align')
+        vertical = style_dict.get('vertical-align')
+
+        if vertical == 'middle':
+            vertical = 'center'
+
+        alignment = Alignment(
+            horizontal=horizontal or 'general',
+            vertical=vertical or 'bottom',
+            wrap_text=True
+        )
+        cell.alignment = alignment
+
+    # Стиль текста
+    def apply_font(self, cell, style_dict):
         bold = style_dict.get('font-weight', None)
         italic = style_dict.get('font-style', None)
         underline = style_dict.get('text-decoration', None)
@@ -95,7 +108,9 @@ class HtmlTableToEcelConverter:
             color=font_color if font_color else old_font.color
         )
 
-        # Фон
+    # Фон
+    def apply_background(self, cell, style_dict):
+
         if 'background-color' in style_dict:
             color = style_dict['background-color'].replace('#', '')
             end_color = self.expand_short_hex(color)
@@ -103,7 +118,8 @@ class HtmlTableToEcelConverter:
                 excel_color = 'FF' + end_color.upper()
                 cell.fill = PatternFill(start_color=excel_color, patternType="solid")
 
-        # Границы
+    # Границы
+    def apply_border(self, cell, style_dict):
         if 'border' in style_dict:
             border_str = style_dict['border']
             parts = border_str.split()
@@ -128,11 +144,6 @@ class HtmlTableToEcelConverter:
                     color = "FF000000"
 
                 side = Side(border_style=border_style, color=color)
-                self.apply_border(cell, side)
-
-
-
-    def apply_border(self, cell, side):
 
         sheet = self.sheet
         merged_ranges = sheet.merged_cells.ranges
@@ -323,3 +334,10 @@ class HtmlTableToEcelConverter:
         self.add_styles_to_section('tbody')
         self.add_styles_to_section('tfoot')
         self.wb.save(output_file)
+
+
+        # сделать учет автовысоты по контенту, чтобы текст нормально отображался. параметр fid
+        # настройка границ ячейки: цвет, толщина обрамления, стороны(все, одна
+        # библиотека конвертации цветов: red -> #f44336
+        # поддержка форматирования текста внутри ячейки "<b>Этот</b> текст" чистка inline тегов(b,i)
+        # добавление скриптов VBA функция allert showMessage
