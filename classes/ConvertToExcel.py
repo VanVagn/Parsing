@@ -65,6 +65,7 @@ class HtmlTableToExcelConverter:
             alignment_kwargs['vertical'] = vertical
         alignment_kwargs['wrap_text'] = wrap_text
 
+        alignment_kwargs['wrap_text'] = True
         cell.alignment = Alignment(**alignment_kwargs)
 
         # Стиль текста
@@ -334,3 +335,10 @@ class HtmlTableToExcelConverter:
         self.add_styles_to_section('tbody')
         self.add_styles_to_section('tfoot')
         self.wb.save(output_file)
+
+
+# сделать учет автовысоты по контенту, чтобы текст нормально отображался. параметр fid
+        # настройка границ ячейки: цвет, толщина обрамления, стороны(все, одна
+        # библиотека конвертации цветов: red -> #f44336
+        # поддержка форматирования текста внутри ячейки "<b>Этот</b> текст" чистка inline тегов(b,i)
+        # добавление скриптов VBA функция allert showMessage
