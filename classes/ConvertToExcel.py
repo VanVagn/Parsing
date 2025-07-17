@@ -108,6 +108,7 @@ class HtmlTableToEcelConverter:
             color=font_color if font_color else old_font.color
         )
 
+
     # Фон
     def apply_background(self, cell, style_dict):
 
