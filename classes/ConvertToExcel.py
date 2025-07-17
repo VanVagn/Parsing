@@ -1,8 +1,10 @@
 from openpyxl import workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
-from openpyxl.utils import get_column_letter
+from openpyxl.styles.builtins import total
+from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.workbook import Workbook
 import re
+import webcolors
 
 class HtmlTableToExcelConverter:
     CSS_COLOR_NAMES = {
@@ -47,99 +49,178 @@ class HtmlTableToExcelConverter:
                     merged[key] = value
         return merged
 
-    def apply_styles(self, cell, style_dict, wrap_text=False):
+
+
+    def apply_styles(self, cell, style_dict):
         if not style_dict or not isinstance(style_dict, dict):
             return
 
-        # Выравнивание текста
-        horizontal = style_dict.get('text-align', None)
-        vertical = style_dict.get('vertical-align', None)
+        self.apply_alignment(cell, style_dict)
+        self.apply_font(cell, style_dict)
+        self.apply_background(cell, style_dict)
+        self.apply_border(cell, style_dict)
+
+    # Выравнивание
+    def apply_alignment(self, cell, style_dict):
+        horizontal = style_dict.get('text-align')
+        vertical = style_dict.get('vertical-align')
 
         if vertical == 'middle':
             vertical = 'center'
 
-        alignment_kwargs = {}
-        if horizontal:
-            alignment_kwargs['horizontal'] = horizontal
-        if vertical:
-            alignment_kwargs['vertical'] = vertical
-        alignment_kwargs['wrap_text'] = wrap_text
+        alignment = Alignment(
+            horizontal=horizontal or 'general',
+            vertical=vertical or 'bottom',
+            wrap_text=True
+        )
+        cell.alignment = alignment
 
-        alignment_kwargs['wrap_text'] = True
-        cell.alignment = Alignment(**alignment_kwargs)
-
-        # Стиль текста
+    # Стиль текста
+    def apply_font(self, cell, style_dict):
         bold = style_dict.get('font-weight', None)
         italic = style_dict.get('font-style', None)
         underline = style_dict.get('text-decoration', None)
+
+        # Переделываем под формат openpyxl
         if underline:
             underline = 'single' if 'underline' in underline else None
 
         # Цвет текста
-        color_val = style_dict.get('color', "").strip().lower()
-        if color_val.startswith('#'):
-            hex_color = color_val.lstrip('#')
-        elif color_val in self.CSS_COLOR_NAMES:
-            hex_color = self.CSS_COLOR_NAMES[color_val]
-        else:
+        color = style_dict.get('color') or ""
+        color_val = color.strip().lower()
+        try:
+            if color_val.startswith('#'):
+                hex_color = color_val.lstrip('#')
+            else:
+                hex_color = webcolors.name_to_hex(color_val).lstrip('#')
+        except ValueError:
             hex_color = None
         font_color = None
         if hex_color and re.fullmatch(r'[0-9a-fA-F]{6}', hex_color):
             font_color = 'FF' + hex_color.upper()
 
+        # Собираем новый Font
         old_font = cell.font or Font()
         cell.font = Font(
             name=old_font.name,
             size=old_font.size,
-            bold=(bold == "bold") if bold is not None else old_font.bold,
-            italic=(italic == "italic") if italic is not None else old_font.italic,
+            bold=bold if bold is not None else old_font.bold,
+            italic=italic if italic is not None else old_font.italic,
             underline=underline if underline is not None else old_font.underline,
             color=font_color if font_color else old_font.color
         )
 
-        # Фон ячейки
+
+    # Фон
+    def apply_background(self, cell, style_dict):
+
         if 'background-color' in style_dict:
-            bg_color = style_dict['background-color'].replace('#', '').strip()
-            end_color = self.expand_short_hex(bg_color)
+            raw_color = style_dict['background-color'].strip().lower()
+            try:
+                if raw_color.startswith('#'):
+                    color = raw_color.lstrip('#')
+                else:
+                    color = webcolors.name_to_hex(raw_color).lstrip('#')
+            except ValueError:
+                color = 'FFFFFF'  # fallback: white
+            end_color = self.expand_short_hex(color)
             if re.fullmatch(r'[0-9a-fA-F]{6}', end_color):
                 excel_color = 'FF' + end_color.upper()
-                cell.fill = PatternFill(start_color=excel_color, end_color=excel_color, patternType="solid")
+                cell.fill = PatternFill(start_color=excel_color, patternType="solid")
 
-        # Обработка границ
-        if 'border' in style_dict:
-            border_str = style_dict['border']
-            parts = border_str.strip().split()
+    # Границы
 
-            width_px = 1
-            border_style = "thin"
-            color = "FF000000"
+    def apply_border(self, cell, style_dict):
+        sheet = self.sheet
 
-            for part in parts:
-                if part.endswith("px"):
-                    try:
-                        width_px = int(part.replace("px", ""))
-                    except ValueError:
-                        width_px = 1
-                elif part.lower() in ["solid", "dashed", "dotted", "double"]:
-                    continue  # можно обработать, если нужно
-                elif part.startswith("#") or part.lower() in self.CSS_COLOR_NAMES:
-                    color_val = part.lower()
-                    if color_val.startswith('#'):
-                        color_val = color_val.lstrip('#')
-                    if color_val in self.CSS_COLOR_NAMES:
-                        color_val = self.CSS_COLOR_NAMES[color_val]
-                    if re.fullmatch(r'[0-9a-fA-F]{6}', color_val):
-                        color = "FF" + color_val.upper()
+        def parse_border_part(border_value):
+
+            parts = border_value.strip().split()
+            if len(parts) < 3:
+                return None
+
+            # Толщина
+            width_str, style_str, color_str = parts[:3]
+            try:
+                width_px = int(width_str.replace('px', ''))
+            except ValueError:
+                width_px = 1
 
             if width_px <= 1:
-                border_style = "thin"
-            elif width_px <= 2:
-                border_style = "medium"
+                border_style = 'thin'
+            elif width_px == 2:
+                border_style = 'medium'
             else:
-                border_style = "thick"
+                border_style = 'thick'
 
-            side = Side(border_style=border_style, color=color)
-            cell.border = Border(left=side, right=side, top=side, bottom=side)
+            # Стиль линии
+            line_style_map = {
+                'solid': border_style,
+                'dashed': 'dashed',
+                'dotted': 'dotted',
+                'double': 'double',
+            }
+            border_style_final = line_style_map.get(style_str.lower(), 'thin')
+
+            # Цвет
+            try:
+                if color_str.startswith('#'):
+                    hex_color = color_str.lstrip('#')
+                else:
+                    hex_color = webcolors.name_to_hex(color_str).lstrip('#')
+            except ValueError:
+                hex_color = '000000'  # default black
+
+            # Расширяем короткий hex
+            if len(hex_color) == 3:
+                hex_color = ''.join([c * 2 for c in hex_color])
+
+            color = 'FF' + hex_color.upper()
+            return Side(border_style=border_style_final, color=color)
+
+        # Начальные стороны
+        borders = {'left': None, 'right': None, 'top': None, 'bottom': None}
+
+        # Общий border
+        if 'border' in style_dict:
+            common = parse_border_part(style_dict['border'])
+            for side in borders:
+                borders[side] = common
+
+        # Переопределения
+        for css_key, side_name in {
+            'border-left': 'left',
+            'border-right': 'right',
+            'border-top': 'top',
+            'border-bottom': 'bottom'
+        }.items():
+            if css_key in style_dict:
+                specific = parse_border_part(style_dict[css_key])
+                borders[side_name] = specific
+
+        # Применение к объединённым или обычным ячейкам
+        merged_ranges = sheet.merged_cells.ranges
+        for merged_range in merged_ranges:
+            min_col, min_row, max_col, max_row = range_boundaries(str(merged_range))
+            if min_row <= cell.row <= max_row and min_col <= cell.column <= max_col:
+                for r in range(min_row, max_row + 1):
+                    for c in range(min_col, max_col + 1):
+                        target_cell = sheet.cell(row=r, column=c)
+                        target_cell.border = Border(
+                            left=borders['left'] if c == min_col else None,
+                            right=borders['right'] if c == max_col else None,
+                            top=borders['top'] if r == min_row else None,
+                            bottom=borders['bottom'] if r == max_row else None
+                        )
+                return
+
+        # Если обычная ячейка
+        cell.border = Border(
+            left=borders['left'],
+            right=borders['right'],
+            top=borders['top'],
+            bottom=borders['bottom']
+        )
 
     def parse_style(self, style_str):
         style_dict = {}
@@ -225,63 +306,54 @@ class HtmlTableToExcelConverter:
     def add_styles_to_section(self, section):
         section_data = self.table_data[section]
         section_style = section_data.get('style', None)
-
-        rowspan_map = {}
+        rowspan_tracker = {}
 
         for row in section_data.get('rows', []):
-            row_style = row.get('style', None)
-            row_height = None
-
-            if row_style:
-                row_style_dict = self.parse_style(row_style)
-                height_str = row_style_dict.get('height')
-                if height_str and height_str.endswith('px'):
-                    try:
-                        px = int(height_str.replace('px', '').strip())
-                        row_height = px * 0.75
-                    except ValueError:
-                        pass
-
-            if row_height:
-                self.sheet.row_dimensions[self.current_row].height = row_height
-
             excel_col_idx = 1
 
-            while (self.current_row, excel_col_idx) in rowspan_map:
-                cell_info = rowspan_map[(self.current_row, excel_col_idx)]
-                start_row = self.current_row
-                start_col = excel_col_idx
-                end_row = start_row + cell_info['remaining']
-                end_col = start_col
-
-                master_row, master_col = self.get_master_cell_coordinates(start_row, start_col)
-                master_cell = self.sheet.cell(row=master_row, column=master_col)
-
-                if master_cell.value is None:
-                    master_cell.value = cell_info['text']
-                    self.apply_styles(master_cell, cell_info['style'], wrap_text=True)
-
-                self.sheet.merge_cells(
-                    start_row=start_row,
-                    end_row=end_row,
-                    start_column=start_col,
-                    end_column=end_col
-                )
-
-                del rowspan_map[(self.current_row, excel_col_idx)]
+            while (self.current_row, excel_col_idx) in rowspan_tracker:
+                rowspan_tracker[(self.current_row, excel_col_idx)] -= 1
+                if rowspan_tracker[(self.current_row, excel_col_idx)] == 0:
+                    del rowspan_tracker[(self.current_row, excel_col_idx)]
                 excel_col_idx += 1
 
+            row_style = row.get('style', None)
             for cell_data in row['cells']:
                 colspan = int(cell_data.get('colspan', 1))
                 rowspan = int(cell_data.get('rowspan', 1))
-                cell_style = cell_data.get('style', "")
                 cell = self.sheet.cell(row=self.current_row, column=excel_col_idx)
+                cell_style = cell_data.get('style', "")
                 cell.value = cell_data.get('text', "")
 
-                if section == 'thead' and 'font-weight' not in cell_style:
-                    if cell_style:
-                        cell_style += "; "
-                    cell_style += "font-weight: bold"
+                if colspan > 1:
+                    self.sheet.merge_cells(
+                        start_row=self.current_row,
+                        start_column=excel_col_idx,
+                        end_row=self.current_row,
+                        end_column=excel_col_idx + colspan - 1
+                    )
+
+                if rowspan > 1:
+                    self.sheet.merge_cells(
+                        start_row=self.current_row,
+                        start_column=excel_col_idx,
+                        end_row=self.current_row + rowspan - 1,
+                        end_column=excel_col_idx + colspan - 1
+                    )
+
+                    for r in range(1, rowspan):
+                        for c in range(colspan):
+                            key = (self.current_row + r, excel_col_idx + c)
+                            rowspan_tracker[key] = rowspan_tracker.get(key, 0) + 1
+
+
+
+        # Жирный шрифт по умолчанию
+                if section == 'thead':
+                    if 'font-weight' not in cell_style:
+                        if cell_style:
+                            cell_style += "; "
+                        cell_style += "font-weight: bold"
 
                 merged_style = self.merge_styles(
                     self.table_data.get('table_style', ""),
@@ -290,44 +362,20 @@ class HtmlTableToExcelConverter:
                     cell_style
                 )
 
-                wrap_text = rowspan > 1
-                self.apply_styles(cell, merged_style, wrap_text=wrap_text)
-
-                if colspan > 1:
-                    self.sheet.merge_cells(
-                        start_row=self.current_row,
-                        end_row=self.current_row,
-                        start_column=excel_col_idx,
-                        end_column=excel_col_idx + colspan - 1
-                    )
-
-                if rowspan > 1:
-                    for offset in range(rowspan):
-                        target_row = self.current_row + offset
-                        for offset_col in range(colspan):
-                            if offset != 0:
-                                rowspan_map[(target_row, excel_col_idx + offset_col)] = {
-                                    'text': cell_data.get('text', ""),
-                                    'style': merged_style,
-                                    'remaining': rowspan - offset - 1
-                                }
-                    self.sheet.merge_cells(
-                        start_row=self.current_row,
-                        end_row=self.current_row + rowspan - 1,
-                        start_column=excel_col_idx,
-                        end_column=excel_col_idx + colspan - 1
-                    )
-
+                cell = self.get_master_cell(cell)
+                self.apply_styles(cell, merged_style)
                 excel_col_idx += colspan
+
 
             self.current_row += 1
 
-    def get_master_cell_coordinates(self, row, col):
+    def get_master_cell(self, cell):
         for merged_range in self.sheet.merged_cells.ranges:
-            min_col, min_row, max_col, max_row = merged_range.bounds
-            if min_row <= row <= max_row and min_col <= col <= max_col:
-                return min_row, min_col
-        return row, col
+            min_col, min_row, max_col, max_row = range_boundaries(str(merged_range))
+            if min_row <= cell.row <= max_row and min_col <= cell.column <= max_col:
+                return self.sheet.cell(row=min_row, column=min_col)
+        return cell
+
 
     def convert(self, output_file='test.xlsx'):
         self.set_col_widths()
@@ -337,8 +385,8 @@ class HtmlTableToExcelConverter:
         self.wb.save(output_file)
 
 
-# сделать учет автовысоты по контенту, чтобы текст нормально отображался. параметр fid
-        # настройка границ ячейки: цвет, толщина обрамления, стороны(все, одна
-        # библиотека конвертации цветов: red -> #f44336
-        # поддержка форматирования текста внутри ячейки "<b>Этот</b> текст" чистка inline тегов(b,i)
-        # добавление скриптов VBA функция allert showMessage
+        # сделать учет автовысоты по контенту, чтобы текст нормально отображался. параметр fid
+        # настройка границ ячейки: цвет, толщина обрамления, стороны(все, одна) - все кроме отдельных границ ячеек
+        # библиотека конвертации цветов: red -> #f44336 - Сделано
+        # поддержка форматирования текста внутри ячейки "<b>Этот</b> текст" чистка inline тегов(b,i) - Есть библиотека xlsxwriter,  но невозможно работать одновременно со стилями и в ней, и в open pyxl
+        # добавление скриптов VBA функция allert showMessage Библиотеки ес1ть, но только на винду

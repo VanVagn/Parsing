@@ -4,11 +4,11 @@ from classes.ConvertToExcel import HtmlTableToExcelConverter
 from classes.Parser import MyParser
 
 #url = "https://ru.onlinemschool.com/math/formula/sine_table/"
-path = "test6.html"
+path = "test7.html"
 #response = requests.get(url)
 
 
-with open('html/test6.html', 'r', encoding='utf-8') as file:
+with open('html/test8.html', 'r', encoding='utf-8') as file:
     html = file.read()
 parser = MyParser()
 
