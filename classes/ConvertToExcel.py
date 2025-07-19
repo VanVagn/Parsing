@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from openpyxl import workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.styles.builtins import total
@@ -36,6 +38,7 @@ class HtmlTableToEcelConverter:
         self.wb = Workbook()
         self.sheet = self.wb.active
         self.current_row = 1
+        self.row_heights = defaultdict(list)
 
     def merge_styles(self, *styles):
         merged = {}
@@ -48,6 +51,74 @@ class HtmlTableToEcelConverter:
                     merged[key] = value
         return merged
 
+    def calculate_row_heigth(self, cell, rowspan, colspan):
+        if not cell.value or not cell.alignment or not cell.alignment.wrap_text:
+            return
+
+        font_size = cell.font.size or 11
+        line_count = self.calculate_line_count(cell, colspan)
+        print("lineCount", cell.row, line_count)
+        required_height = font_size * line_count + font_size * line_count
+        # print(cell.row, line_count)
+        if rowspan == 1:
+            self.row_heights[cell.row].append(required_height)
+            print(cell.row, required_height)
+        else:
+            per_row_height = required_height / rowspan
+            for r in range(cell.row, cell.row + rowspan):
+                self.row_heights[r].append(per_row_height)
+                print(cell.row, per_row_height)
+
+
+    def apply_row_heights(self):
+        print()
+        for row_idx, heights in self.row_heights.items():
+            if heights:
+                required_height = min(heights)
+                current_height = self.sheet.row_dimensions[row_idx].height
+                if not current_height or current_height < required_height:
+                    self.sheet.row_dimensions[row_idx].height = required_height
+                    print(row_idx, required_height)
+
+
+
+
+    def calculate_line_count(self, cell, colspan):
+        text = str(cell.value)
+        if not text:
+            return 1
+
+        total_width = 0
+        for col in range(cell.column, cell.column + colspan):
+            col_letter = get_column_letter(col)
+            col_dim = self.sheet.column_dimensions[col_letter]
+            total_width += self.unit_to_px(col_dim.width)
+
+
+        font_size = cell.font.size or 11
+        char_width = font_size * 0.6
+        max_chars_per_line = max(1, int(total_width / char_width))
+        if cell.row == 2:
+            print("char ", max_chars_per_line)
+        words = text.split()
+        line_count = 1
+        current_line_length = 0
+
+        for word in words:
+            word_length = len(word)
+            if current_line_length > 0:
+                word_length += 1
+
+            if current_line_length + word_length < max_chars_per_line:
+                current_line_length += word_length
+            else:
+                if word_length > max_chars_per_line:
+                    line_count += (word_length // max_chars_per_line)
+                    current_line_length = word_length % max_chars_per_line
+                else:
+                    line_count += 1
+                    current_line_length = word_length
+        return max(1, line_count)
 
 
     def apply_styles(self, cell, style_dict):
@@ -68,8 +139,8 @@ class HtmlTableToEcelConverter:
             vertical = 'center'
 
         alignment = Alignment(
-            horizontal=horizontal or 'general',
-            vertical=vertical or 'bottom',
+            horizontal=horizontal or 'center',
+            vertical=vertical or 'center',
             wrap_text=True
         )
         cell.alignment = alignment
@@ -251,9 +322,14 @@ class HtmlTableToEcelConverter:
         for col_idx in range(max_col_index):
             px = known_widths.get(col_idx)
             if px:
-                excel_width = (px - 5) / 7
+                excel_width = self.px_to_unit(px)
                 col_letter = get_column_letter(col_idx + 1)
                 self.sheet.column_dimensions[col_letter].width = excel_width
+
+    def px_to_unit(self, px):
+        return (px - 5) / 7
+    def unit_to_px(self, unit):
+        return unit * 7 + 5
 
     def add_styles_to_section(self, section):
         section_data = self.table_data[section]
@@ -316,10 +392,12 @@ class HtmlTableToEcelConverter:
 
                 cell = self.get_master_cell(cell)
                 self.apply_styles(cell, merged_style)
+                self.calculate_row_heigth(cell, rowspan, colspan)
                 excel_col_idx += colspan
 
 
             self.current_row += 1
+
 
     def get_master_cell(self, cell):
         for merged_range in self.sheet.merged_cells.ranges:
@@ -334,6 +412,7 @@ class HtmlTableToEcelConverter:
         self.add_styles_to_section('thead')
         self.add_styles_to_section('tbody')
         self.add_styles_to_section('tfoot')
+        self.apply_row_heights()
         self.wb.save(output_file)
 
 

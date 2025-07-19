@@ -16,7 +16,7 @@ parser = MyParser()
 
 parser.feed(html)
 converter = HtmlTableToEcelConverter(parser.table_data)
-converter.convert("excelFiles/text.xlsx")
+converter.convert("excelFiles/test.xlsx")
 # k = len(parser.table_data['tbody']['rows'])
 # for i in range(k):
 #     j = len(parser.table_data['tbody']['rows'][i]['cells'])
