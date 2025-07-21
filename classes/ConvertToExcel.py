@@ -271,6 +271,7 @@ class HtmlTableToEcelConverter:
         known_widths = {}
         max_col_index = 0
 
+
         # Ширина каждой ячейки
         for row in section_rows:
             cells = row.get('cells', [])
@@ -279,6 +280,7 @@ class HtmlTableToEcelConverter:
                 colspan = int(cell.get('colspan', 1))
                 style = self.parse_style(cell.get('style', ''))
                 width_str = style.get('width', '')
+
                 if width_str.endswith('px'):
                     try:
                         px = int(width_str.replace('px', '').strip())
@@ -287,6 +289,7 @@ class HtmlTableToEcelConverter:
                             col_idx = col_cursor + offset
                             if col_idx not in known_widths:
                                 known_widths[col_idx] = per_col_px
+
                     except ValueError:
                         pass
                 elif width_str.endswith('%') and table_width_px is not None:
@@ -303,6 +306,19 @@ class HtmlTableToEcelConverter:
 
                 col_cursor += colspan
                 max_col_index = max(max_col_index, col_cursor)
+
+        max_length_text_cells = [0] * max_col_index
+
+        for row in section_rows:
+            cells = row.get('cells', [])
+            col_idx = 0
+            for cell in cells:
+                colspan = int(cell.get('colspan', 1))
+                cell_text = str(cell.get('text', ''))
+                length = len(cell_text)
+                max_length_text_cells[col_idx] = max(length, max_length_text_cells[col_idx])
+                col_idx += colspan
+
 
         # Ширина через colgroup
         for col_idx in range(max_col_index):
@@ -332,6 +348,10 @@ class HtmlTableToEcelConverter:
             per_col_px = remaining_px / len(unknown_indexes)
             for idx in unknown_indexes:
                 known_widths[idx] = per_col_px
+        elif not table_width_px and unknown_indexes:
+            for idx in unknown_indexes:
+                max_length = max_length_text_cells[idx]
+                known_widths[idx] = self.auto_width(max_length)
 
         # Применяем сохраненную ширину
         for col_idx in range(max_col_index):
@@ -340,6 +360,16 @@ class HtmlTableToEcelConverter:
                 excel_width = self.px_to_unit(px)
                 col_letter = get_column_letter(col_idx + 1)
                 self.sheet.column_dimensions[col_letter].width = excel_width
+
+    def auto_width(self, length):
+        style_table =  self.table_data.get('table_style', "")
+        style_dict = self.parse_style(style_table)
+        weight = style_dict.get("font-size", 11)
+        char_width = 0.6
+        koef = 1.5
+        if length == 0:
+            length = 2
+        return length * char_width * weight * koef
 
     def px_to_unit(self, px):
         return (px - 5) / 7
