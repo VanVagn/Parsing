@@ -18,7 +18,6 @@ class MyParser(HTMLParser):
             'cells': []
         }
         self.current_cell_content = []
-        self.table_data['colgroup'] = []
         self.inside_cell = False
         self.in_colgroup = False
         self.cell_style = None

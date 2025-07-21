@@ -32,7 +32,6 @@ class HtmlTableToEcelConverter:
         'text-align', 'vertical-align', 'border'
     }
 
-
     def __init__(self, table_data):
         self.table_data = table_data
         self.wb = Workbook()
@@ -57,31 +56,23 @@ class HtmlTableToEcelConverter:
 
         font_size = cell.font.size or 11
         line_count = self.calculate_line_count(cell, colspan)
-        print("lineCount", cell.row, line_count)
         required_height = font_size * line_count + font_size * line_count
-        # print(cell.row, line_count)
         if rowspan == 1:
             self.row_heights[cell.row].append(required_height)
-            print(cell.row, required_height)
+
         else:
             per_row_height = required_height / rowspan
             for r in range(cell.row, cell.row + rowspan):
                 self.row_heights[r].append(per_row_height)
-                print(cell.row, per_row_height)
-
 
     def apply_row_heights(self):
-        print()
+
         for row_idx, heights in self.row_heights.items():
             if heights:
                 required_height = min(heights)
                 current_height = self.sheet.row_dimensions[row_idx].height
                 if not current_height or current_height < required_height:
                     self.sheet.row_dimensions[row_idx].height = required_height
-                    print(row_idx, required_height)
-
-
-
 
     def calculate_line_count(self, cell, colspan):
         text = str(cell.value)
@@ -98,8 +89,6 @@ class HtmlTableToEcelConverter:
         font_size = cell.font.size or 11
         char_width = font_size * 0.6
         max_chars_per_line = max(1, int(total_width / char_width))
-        if cell.row == 2:
-            print("char ", max_chars_per_line)
         words = text.split()
         line_count = 1
         current_line_length = 0
@@ -119,7 +108,6 @@ class HtmlTableToEcelConverter:
                     line_count += 1
                     current_line_length = word_length
         return max(1, line_count)
-
 
     def apply_styles(self, cell, style_dict):
         if not style_dict or not isinstance(style_dict, dict):
@@ -178,7 +166,6 @@ class HtmlTableToEcelConverter:
             underline=underline if underline is not None else old_font.underline,
             color=font_color if font_color else old_font.color
         )
-
 
     # Фон
     def apply_background(self, cell, style_dict):
@@ -266,6 +253,7 @@ class HtmlTableToEcelConverter:
         colgroup = self.table_data.get('colgroup', [])
         table_style = self.parse_style(self.table_data.get('table_style', ''))
 
+        # Общая ширина таблицы
         table_width_px = None
         width_str = table_style.get('width', '')
         if width_str.endswith('px'):
@@ -274,18 +262,23 @@ class HtmlTableToEcelConverter:
             except ValueError:
                 pass
 
-        body_rows = self.table_data.get('tbody', {}).get('rows', [])
+        section_rows = []
+        for section in ['thead', 'tbody', 'tfoot']:
+            section_data = self.table_data.get(section, {})
+            if isinstance(section_data, dict):
+                section_rows.extend(section_data.get('rows', []))
+
         known_widths = {}
         max_col_index = 0
 
-        for row in body_rows:
+        # Ширина каждой ячейки
+        for row in section_rows:
             cells = row.get('cells', [])
             col_cursor = 0
             for cell in cells:
                 colspan = int(cell.get('colspan', 1))
                 style = self.parse_style(cell.get('style', ''))
                 width_str = style.get('width', '')
-
                 if width_str.endswith('px'):
                     try:
                         px = int(width_str.replace('px', '').strip())
@@ -296,10 +289,22 @@ class HtmlTableToEcelConverter:
                                 known_widths[col_idx] = per_col_px
                     except ValueError:
                         pass
+                elif width_str.endswith('%') and table_width_px is not None:
+                    try:
+                        percent = int(width_str.replace('%', '').strip())
+                        percent = percent / 100
+                        per_col_px = table_width_px * percent / colspan
+                        for offset in range(colspan):
+                            col_idx = col_cursor + offset
+                            if col_idx not in known_widths:
+                                known_widths[col_idx] = per_col_px
+                    except ValueError:
+                        pass
 
                 col_cursor += colspan
                 max_col_index = max(max_col_index, col_cursor)
 
+        # Ширина через colgroup
         for col_idx in range(max_col_index):
             if col_idx not in known_widths and col_idx < len(colgroup):
                 col_style = self.parse_style(colgroup[col_idx].get('style') or '')
@@ -310,7 +315,16 @@ class HtmlTableToEcelConverter:
                         known_widths[col_idx] = px
                     except ValueError:
                         pass
+                elif width_str.endswith('%') and table_width_px is not None:
 
+                    try:
+                        percent = int(col_width_str.replace('%', '').strip())
+                        percent = percent / 100
+                        known_widths[col_idx] = table_width_px * percent
+                    except ValueError:
+                        pass
+
+        # Назначаем ширину клеткам без явного размера
         unknown_indexes = [i for i in range(max_col_index) if i not in known_widths]
         if table_width_px and unknown_indexes:
             total_known = sum(known_widths.values())
@@ -319,6 +333,7 @@ class HtmlTableToEcelConverter:
             for idx in unknown_indexes:
                 known_widths[idx] = per_col_px
 
+        # Применяем сохраненную ширину
         for col_idx in range(max_col_index):
             px = known_widths.get(col_idx)
             if px:
@@ -328,6 +343,7 @@ class HtmlTableToEcelConverter:
 
     def px_to_unit(self, px):
         return (px - 5) / 7
+
     def unit_to_px(self, unit):
         return unit * 7 + 5
 
@@ -398,14 +414,12 @@ class HtmlTableToEcelConverter:
 
             self.current_row += 1
 
-
     def get_master_cell(self, cell):
         for merged_range in self.sheet.merged_cells.ranges:
             min_col, min_row, max_col, max_row = range_boundaries(str(merged_range))
             if min_row <= cell.row <= max_row and min_col <= cell.column <= max_col:
                 return self.sheet.cell(row=min_row, column=min_col)
         return cell
-
 
     def convert(self, output_file='test.xlsx'):
         self.set_col_widths()
