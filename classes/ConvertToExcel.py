@@ -7,6 +7,8 @@ from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.workbook import Workbook
 import re
 import webcolors
+from wheel.cli import parse_build_tag
+
 
 class HtmlTableToEcelConverter:
     CSS_COLOR_NAMES = {
@@ -30,7 +32,7 @@ class HtmlTableToEcelConverter:
 
     APPLICABLE_CSS_PROPERTIES = {
         'font-weight', 'font-style', 'text-decoration', 'color', 'background-color',
-        'text-align', 'vertical-align', 'border'
+        'text-align', 'vertical-align', 'border', 'border-top', 'border-right', 'border-bottom', 'border-left'
     }
 
     def __init__(self, table_data):
@@ -188,47 +190,69 @@ class HtmlTableToEcelConverter:
 
     # Границы
     def apply_border(self, cell, style_dict):
-        if 'border' in style_dict:
-            border_str = style_dict['border']
-            parts = border_str.split()
-            if len(parts) >= 3:
-                width_str, style_str, color_str = parts[:3]
-                try:
-                    width_px = int(width_str.replace('px', ''))
-                except ValueError:
-                    width_px = 1
+        print(style_dict)
+        def parse_border_side(side_style):
+            if not side_style or side_style is None:
+                return None
+            parts = side_style.split()
+            width_px = 1
+            line_style = 'thin'
+            color = '000000'
 
+            for part in parts:
+                if part.endswith('px'):
+                    try:
+                        width_px = int(part.replace('px', ''))
+                    except ValueError:
+                        width_px = 1
+                elif part in ('solid', 'dashed', 'dotted', 'double', 'groove', \
+                              'ridge', 'inset', 'outset'):
+                    if part == 'solid':
+                        line_style = "thin" if width_px <= 1 \
+                            else "medium" if width_px <= 2 else "thick"
+                    elif part == 'dashed':
+                        line_style = "dashed"
+                    elif part == 'dotted':
+                        line_style = "dotted"
+                    elif part == 'double':
+                        line_style = "double"
+                    else:
+                        line_style = "thin"  # fallback для groove, ridge и др.
+                elif part.startswith('#'):
+                    color = part.lstrip('#')
+                else:
+                    try:
+                        color = webcolors.name_to_hex(part).lstrip('#')
+                    except ValueError:
+                        color = "000000"
+
+            if line_style in ("thin", "medium", "thick"):
                 if width_px <= 1:
-                    border_style = "thin"
-                elif width_px <= 2:
-                    border_style = "medium"
+                    line_style = "thin"
+                elif width_px <= 3:
+                    line_style = "medium"
                 else:
-                    border_style = "thick"
+                    line_style = "thick"
 
-                # # Стиль линии
-                # line_style_map = {
-                #     'solid': border_style,
-                #     'dashed': 'dashed',
-                #     'dotted': 'dotted',
-                #     'double': 'double',
-                # }
-                # border_style_final = line_style_map.get(style_str.lower(), 'thin')
+            return Side(style=line_style, color=color)
+
+        border_top = parse_border_side(style_dict.get('border-top'))
+        border_right = parse_border_side(style_dict.get('border-right'))
+        border_bottom = parse_border_side(style_dict.get('border-bottom'))
+        border_left = parse_border_side(style_dict.get('border-left'))
 
 
-                color = webcolors.name_to_hex(color_str)
-                color = color.lstrip('#')
-                print(color)
-                if len(color) == 6:
-                    color = "FF" + color.upper()
-                else:
-                    color = "FF000000"
-
-                side = Side(border_style=border_style, color=color)
+        if 'border' in style_dict:
+            general_side = parse_border_side(style_dict['border'])
+            border_top = border_top if border_top is not None else general_side
+            border_right = border_right if border_right is not None else general_side
+            border_bottom = border_bottom if border_bottom is not None else general_side
+            border_left = border_left if border_left is not None else general_side
 
         sheet = self.sheet
-        merged_ranges = sheet.merged_cells.ranges
-        left = right = top = bottom = None
+        merged_ranges = sheet.merged_cells.ranges if sheet.merged_cells else []
         found_merge = False
+
         for merged_range in merged_ranges:
             min_col, min_row, max_col, max_row = range_boundaries(str(merged_range))
             if min_row <= cell.row <= max_row and min_col <= cell.column <= max_col:
@@ -236,22 +260,15 @@ class HtmlTableToEcelConverter:
                 for row in range(min_row, max_row + 1):
                     for col in range(min_col, max_col + 1):
                         target_cell = sheet.cell(row=row, column=col)
-
-                        if col == min_col:
-                            left = side
-                        if col == max_col:
-                            right = side
-                        if row == min_row:
-                            top = side
-                        if row == max_row:
-                            bottom = side
-
+                        left = border_left if col == min_col else None
+                        right = border_right if col == max_col else None
+                        top = border_top if row == min_row else None
+                        bottom = border_bottom if row == max_row else None
                         target_cell.border = Border(left=left, right=right, top=top, bottom=bottom)
                 break
-        if not found_merge:
-            left = right = top = bottom = side
 
-        cell.border = Border(left=left, right=right, top=top, bottom=bottom)
+        if not found_merge:
+            cell.border = Border(left=border_left, right=border_right, top=border_top, bottom=border_bottom)
 
     def parse_style(self, style_str):
         style_dict = {}
