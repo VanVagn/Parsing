@@ -6,6 +6,7 @@ from openpyxl.styles.builtins import total
 from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.workbook import Workbook
 import re
+import webcolors
 
 class HtmlTableToEcelConverter:
     CSS_COLOR_NAMES = {
@@ -146,11 +147,12 @@ class HtmlTableToEcelConverter:
         # Цвет текста
         color = style_dict.get('color') or ""
         color_val = color.strip().lower()
-        if color_val.startswith('#'):
-            hex_color = color_val.lstrip('#')
-        elif color_val in self.CSS_COLOR_NAMES:
-            hex_color = self.CSS_COLOR_NAMES[color_val]
-        else:
+        try:
+            if color_val.startswith('#'):
+                hex_color = color_val.lstrip('#')
+            else:
+                hex_color = webcolors.name_to_hex(color_val).lstrip('#')
+        except ValueError:
             hex_color = None
         font_color = None
         if hex_color and re.fullmatch(r'[0-9a-fA-F]{6}', hex_color):
@@ -172,6 +174,13 @@ class HtmlTableToEcelConverter:
 
         if 'background-color' in style_dict:
             color = style_dict['background-color'].replace('#', '')
+            try:
+                if color.startswith('#'):
+                    color = color.lstrip('#')
+                else:
+                    color = webcolors.name_to_hex(color).lstrip('#')
+            except ValueError:
+                color = 'FFFFFF'
             end_color = self.expand_short_hex(color)
             if re.fullmatch(r'[0-9a-fA-F]{6}', end_color):
                 excel_color = 'FF' + end_color.upper()
@@ -196,7 +205,19 @@ class HtmlTableToEcelConverter:
                 else:
                     border_style = "thick"
 
-                color = color_str.lstrip('#')
+                # # Стиль линии
+                # line_style_map = {
+                #     'solid': border_style,
+                #     'dashed': 'dashed',
+                #     'dotted': 'dotted',
+                #     'double': 'double',
+                # }
+                # border_style_final = line_style_map.get(style_str.lower(), 'thin')
+
+
+                color = webcolors.name_to_hex(color_str)
+                color = color.lstrip('#')
+                print(color)
                 if len(color) == 6:
                     color = "FF" + color.upper()
                 else:
