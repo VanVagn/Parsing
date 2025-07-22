@@ -175,7 +175,7 @@ class HtmlTableToEcelConverter:
     def apply_background(self, cell, style_dict):
 
         if 'background-color' in style_dict:
-            color = style_dict['background-color'].replace('#', '')
+            color = style_dict['background-color']
             try:
                 if color.startswith('#'):
                     color = color.lstrip('#')
@@ -184,13 +184,13 @@ class HtmlTableToEcelConverter:
             except ValueError:
                 color = 'FFFFFF'
             end_color = self.expand_short_hex(color)
+
             if re.fullmatch(r'[0-9a-fA-F]{6}', end_color):
                 excel_color = 'FF' + end_color.upper()
                 cell.fill = PatternFill(start_color=excel_color, patternType="solid")
 
     # Границы
     def apply_border(self, cell, style_dict):
-        print(style_dict)
         def parse_border_side(side_style):
             if not side_style or side_style is None:
                 return None
@@ -225,7 +225,7 @@ class HtmlTableToEcelConverter:
                         color = webcolors.name_to_hex(part).lstrip('#')
                     except ValueError:
                         color = "000000"
-
+            color = self.expand_short_hex(color)
             if line_style in ("thin", "medium", "thick"):
                 if width_px <= 1:
                     line_style = "thin"
@@ -437,6 +437,7 @@ class HtmlTableToEcelConverter:
                 cell_style = cell_data.get('style', "")
                 cell.value = cell_data.get('text', "")
 
+
                 if colspan > 1:
                     self.sheet.merge_cells(
                         start_row=self.current_row,
@@ -501,5 +502,5 @@ class HtmlTableToEcelConverter:
         # сделать учет автовысоты по контенту, чтобы текст нормально отображался. параметр fid
         # настройка границ ячейки: цвет, толщина обрамления, стороны(все, одна
         # библиотека конвертации цветов: red -> #f44336
-        # поддержка форматирования текста внутри ячейки "<b>Этот</b> текст" чистка inline тегов(b,i)
+        # поддержка форматирования текста внутри ячейки "<b>Этот</b> текст" чистка inline тегов(b,i) richtext
         # добавление скриптов VBA функция allert showMessage

@@ -81,6 +81,8 @@ class MyParser(HTMLParser):
 
             }
             if tag == 'th':
+                if cell['style'] is None:
+                    cell['style'] = ""
                 if cell['style']:
                     cell['style'] += "; "
                 cell['style'] += "font-weight: bold"

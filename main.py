@@ -9,7 +9,7 @@ response = requests.get(url)
 # html = response.text
 # table_class = "oms_mnt1"
 # parser = MyParser(table_class)
-with open('html/test3.html', 'r', encoding='utf-8') as file:
+with open('html/test4.html', 'r', encoding='utf-8') as file:
     html = file.read()
 parser = MyParser()
 
